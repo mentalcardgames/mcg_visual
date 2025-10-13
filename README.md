@@ -34,6 +34,8 @@ templates and usages of `wasm-pack`.
 
 ### 🐑 Use `cargo generate` to Clone this Template
 
+!!! Currently not working !!!
+
 [Learn more about `cargo generate` here.](https://github.com/ashleygwilliams/cargo-generate)
 
 ```
