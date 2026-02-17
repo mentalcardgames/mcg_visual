@@ -1,86 +1,165 @@
-<div align="center">
+# mcg_visual
 
-  <h1><code>wasm-pack-template</code></h1>
+**mcg_visual** is a Rust-based WebAssembly (WASM) framework designed for visualizing card games. It leverages `egui` for the user interface, providing a flexible and responsive environment for card game development and prototyping.
 
-  <strong>A template for kick starting a Rust and WebAssembly project using <a href="https://github.com/rustwasm/wasm-pack">wasm-pack</a>.</strong>
+## Project Overview
 
-  <p>
-    <a href="https://travis-ci.org/rustwasm/wasm-pack-template"><img src="https://img.shields.io/travis/rustwasm/wasm-pack-template.svg?style=flat-square" alt="Build Status" /></a>
-  </p>
+This project provides a robust foundation for building card games with the following core features:
 
-  <h3>
-    <a href="https://rustwasm.github.io/docs/wasm-pack/tutorials/npm-browser-packages/index.html">Tutorial</a>
-    <span> | </span>
-    <a href="https://discordapp.com/channels/442252698964721669/443151097398296587">Chat</a>
-  </h3>
+-   **WASM & Rust Powers**: High-performance game logic running in the browser.
+-   **Immediate Mode UI**: Built on `egui` for rapid iteration and dynamic interfaces.
+-   **Visual Card Management**:
+    -   **Drag & Drop**: Intuitive mechanics for moving cards between different zones (stacks, player hands, etc.).
+    -   **Local Asset Loading**: Capability to validly load card images from a local directory served via HTTP.
+-   **Configurable Game State**: Support for configurable number of players and flexible initial game setups.
+-   **Extensible Architecture**: Traits and structs designed for easy extension to support various card game rules and visuals.
 
-  <sub>Built with 🦀🕸 by <a href="https://rustwasm.github.io/">The Rust and WebAssembly Working Group</a></sub>
-</div>
+## Architecture & API
 
-## About
+The core interaction logic is built around a set of traits and structs that define how screens, cards, and fields behave.
 
-[**📚 Read this template tutorial! 📚**][template-docs]
+### Key Traits
 
-This template is designed for compiling Rust libraries into WebAssembly and
-publishing the resulting package to NPM.
+-   **`ScreenWidget`** @ [src/game/screen.rs](src/game/screen.rs):
+    -   **Purpose**: Defines a distinct screen or state in the application (e.g., Main Menu, Game Setup, Active Game).
+    -   **Usage**: Implement this trait to create new views. The `update` method handles the logic and UI rendering for that screen.
+    -   **Navigation**: Screens can request transitions to other screens via a shared `next_screen` state.
 
-Be sure to check out [other `wasm-pack` tutorials online][tutorials] for other
-templates and usages of `wasm-pack`.
+-   **`CardEncoding`** @ [src/game/card.rs](src/game/card.rs):
+    -   **Purpose**: Acts as an interface to make custom types accessible as cards for mental card games in academia.
+    -   **Usage**: Implement this to define how your cards are represented in data (e.g., Suit/Rank, ID). It handles state like whether a card is masked (face down) or open (face up).
 
-[tutorials]: https://rustwasm.github.io/docs/wasm-pack/tutorials/index.html
-[template-docs]: https://rustwasm.github.io/docs/wasm-pack/tutorials/npm-browser-packages/index.html
+-   **`CardConfig`** @ [src/game/card.rs](src/game/card.rs):
+    -   **Purpose**: Defines the visual representation of a card.
+    -   **Usage**: Implement this to tell the system how to render a card specifically. It maps the logical `CardEncoding` to an `egui::Image`.
 
-## 🚴 Usage
+-   **`FieldWidget`** @ [src/game/field.rs](src/game/field.rs):
+    -   **Purpose**: Defines a container that holds cards.
+    -   **Usage**: Used to render areas where cards exist, such as a draw pile, discard pile, or a player's hand.
 
-### 🐑 Use `cargo generate` to Clone this Template
+### Core Structs
 
-*Important: ``cargo generate`` does currently not work!*
+-   **`App`**:
+    -   The main entry point that manages the registration and switching of `ScreenWidget`s.
 
-[Learn more about `cargo generate` here.](https://github.com/ashleygwilliams/cargo-generate)
+-   **`SimpleField`** @ [src/game/field.rs](src/game/field.rs):
+    -   A full implementation of `FieldWidget`.
+    -   **Purpose**: Serves as a default container for card storage.
+    -   **Features**: Supports `Stack` (cards on top of each other) and `Horizontal` (cards side-by-side) layouts. Handles the drag-and-drop logic for cards within or between fields.
 
+-   **`DirectoryCardType`** @ [src/game/card.rs](src/game/card.rs):
+    -   A full implementation of `CardConfig`.
+    -   **Purpose**: An example implementation for default 52 playing card sets that is able to display different images depending on the style that is chosen. 
+    -   **Features**: configuring a deck where card images are loaded from a specific directory. Useful for quick prototyping with custom assets.
+
+-   **`SimpleCard`** @ [src/game/card.rs](src/game/card.rs):
+    -   A full implementation of `CardEncoding`.
+    -   **Purpose**: Represents a card in the default 52 playing card set.
+
+## Extensibility
+
+`mcg_visual` is designed to be extended. Here is how you can build upon it:
+
+### 1. Custom Game Screens
+Create a struct and implement `ScreenWidget`. Register it in the `App` during initialization.
+
+```rust
+struct MyVictoryScreen;
+impl ScreenWidget for MyVictoryScreen {
+    fn update(&mut self, next_screen: Rc<RefCell<String>>, ctx: &Context, _frame: &mut Frame) {
+         egui::CentralPanel::default().show(ctx, |ui| {
+             ui.heading("You Won!");
+             if ui.button("Back to Menu").clicked() {
+                 *next_screen.borrow_mut() = String::from("main");
+             }
+         });
+    }
+}
 ```
-cargo generate --git https://github.com/rustwasm/wasm-pack-template.git --name my-project
-cd my-project
+
+### 2. Custom Card Types
+Implement `CardEncoding` for your card logic and `CardConfig` for visual rendering.
+
+```rust
+struct MyCard { id: usize }
+impl CardEncoding for MyCard { ... }
+
+struct MyCardVisuals;
+impl CardConfig for MyCardVisuals {
+    fn img(&self, card: &impl CardEncoding) -> Image {
+        // Return appropriate image based on card state
+    }
+    // ... define dimensions
+}
 ```
 
-### 🛠️ Build with `wasm-pack build`
+### 3. Complex Layouts using `SimpleField`
+You can compose multiple `SimpleField` instances to create complex board states. However, `SimpleField` is primarily designed for horizontal or stacked layouts.
 
-```
-wasm-pack build
-```
+**Example**: For a game like **Solitaire** where you need vertical columns of cards, you would need to create a new struct that extends `FieldWidget`. `SimpleField` is not capable of vertical card placement out of the box.
 
-### 🔬 Test in Headless Browsers with `wasm-pack test`
-
-```
-wasm-pack test --headless --firefox
-```
-
-### 🎁 Publish to NPM with `wasm-pack publish`
-
-```
-wasm-pack publish
+```rust
+struct VerticalField { ... }
+impl FieldWidget for VerticalField {
+    fn draw(&self) -> impl egui::Widget {
+        // Implementation for drawing cards vertically
+    }
+}
 ```
 
-## 🔋 Batteries Included
+### 4. Custom Fields
+If `SimpleField` doesn't meet your needs (e.g., you need a circular or grid layout), you can implement your own struct that accesses card data and implements `FieldWidget`.
 
-* [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen) for communicating
-  between WebAssembly and JavaScript.
-* [`console_error_panic_hook`](https://github.com/rustwasm/console_error_panic_hook)
-  for logging panic messages to the developer console.
-* `LICENSE-APACHE` and `LICENSE-MIT`: most Rust projects are licensed this way, so these are included for you
+## Features Detailed
 
-## License
+### Drag & Drop (DnD)
 
-Licensed under either of
+The system leverages `egui`'s native drag and drop capabilities to allow intuitive card interaction. The architecture separates the **Visual Widget** (the Field) from the **Game Logic** (the State).
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+1.  **The Payload (`DNDSelector`)**:
+    We define a specific payload type that carries information about what is being dragged.
+    ```rust
+    pub enum DNDSelector {
+        Player(usize, usize), // (Player Index, Card Index)
+        Stack,                // From the top of the stack
+        Index(usize),         // Generic index
+    }
+    ```
 
-at your option.
+2.  **The Source (SimpleField)**:
+    When drawing the field, if a user starts dragging a card, the field sets the payload.
+    ```rust
+    // In SimpleField::draw_horizontal
+    if ui.response().drag_started() {
+        // Set the payload to indicate WHICH card is being dragged
+        ui.response().dnd_set_drag_payload(DNDSelector::Index(idx));
+    }
+    ```
 
-### Contribution
+3.  **The Detection (Game Loop)**:
+    In your main game loop (`ScreenWidget::update`), you check if a payload was released over a specific area.
+    ```rust
+    // Draw the stack
+    let response = ui.add(stack.draw());
 
-Unless you explicitly state otherwise, any contribution intentionally
-submitted for inclusion in the work by you, as defined in the Apache-2.0
-license, shall be dual licensed as above, without any additional terms or
-conditions.
+    // Check if something valid was dropped onto the stack
+    if let Some(payload) = response.dnd_release_payload::<DNDSelector>() {
+        // 'self.drop' stores WHERE we dropped it
+        self.drop = Some(DNDSelector::Stack);
+    }
+    ```
+
+4.  **The Mutation**:
+    Finally, you resolve the move by modifying the game state.
+    ```rust
+    if let (Some(source), Some(destination)) = (self.drag, self.drop) {
+        // Move the card data from source field to destination field
+        game_state.move_card(source, destination);
+        
+        // Reset state
+        self.drag = None;
+        self.drop = None;
+    }
+    ```
+
+This separation allows for validation logic (e.g., checking if a move is legal before applying it) to be inserted easily in the `The Mutation` step.
